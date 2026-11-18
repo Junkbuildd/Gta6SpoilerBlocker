@@ -70,11 +70,33 @@
   const MARK = "data-spoiler-blocked";
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "CODE"]);
   // Containers that usually hold one whole item (news card, post, list entry)
-  const CARD_SELECTOR = "article, li, tr, section, [role='article'], [role='listitem']";
+  const CARD_SELECTOR = [
+    // Generic
+    "article", "li", "tr", "[role='article']", "[role='listitem']",
+    // YouTube (home, search, sidebar, Shorts, playlists, comments, notifications)
+    "ytd-rich-item-renderer", "ytd-video-renderer", "ytd-compact-video-renderer",
+    "ytd-grid-video-renderer", "ytd-playlist-renderer", "ytd-compact-playlist-renderer",
+    "ytd-radio-renderer", "ytd-compact-radio-renderer", "ytd-reel-item-renderer",
+    "ytd-playlist-panel-video-renderer", "ytd-movie-renderer", "ytd-channel-renderer",
+    "ytd-comment-thread-renderer", "ytd-notification-renderer", "ytd-post-renderer",
+    "ytd-backstage-post-thread-renderer", "yt-lockup-view-model", "ytm-shorts-lockup-view-model",
+    "ytm-shorts-lockup-view-model-v2", "ytd-rich-grid-media", "ytd-end-screen-renderer",
+    // X / Twitter
+    "[data-testid='cellInnerDiv']", "[data-testid='trend']",
+    // Facebook
+    "[aria-posinset]", "[data-pagelet^='FeedUnit']",
+    // Reddit
+    "shreddit-post", "shreddit-comment", "faceplate-tracker[noun='post']",
+    // Instagram, LinkedIn, TikTok
+    "div[data-id^='urn:li:activity']", "[data-e2e='recommend-list-item-container']",
+  ].join(", ");
   const MEDIA_SELECTOR = "img, picture, video, figure, [style*='background-image']";
   // How far up the tree to look for a headline's thumbnail
-  const MAX_CLIMB = 6;
-  const MAX_CARD_TEXT = 500;
+  const MAX_CLIMB = 12;
+  const MAX_CARD_TEXT = 600;
+  const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
+
+  const textLength = (el) => (el.textContent || "").replace(/\s+/g, " ").trim().length;
 
   const matches = (s) => typeof s === "string" && s.length > 0 && PATTERN.test(s);
   const HOST = location.hostname.replace(/^www\./, "");
@@ -87,14 +109,24 @@
   // Find the element to hide: a known card container, or the smallest
   // ancestor that also contains the headline's image/video.
   function findContainer(el) {
-    const card = el.closest(CARD_SELECTOR);
-    if (card && card !== document.body) return card;
+    let card = el.closest(CARD_SELECTOR);
+    if (card && card !== document.body) {
+      // Prefer the outermost wrapper of the same item (e.g. YouTube nests several card elements)
+      let outer = card.parentElement && card.parentElement.closest(CARD_SELECTOR);
+      while (outer && outer !== document.body && textLength(outer) <= textLength(card) + 40) {
+        card = outer;
+        outer = card.parentElement && card.parentElement.closest(CARD_SELECTOR);
+      }
+      return card;
+    }
 
     let node = el;
     for (let i = 0; i < MAX_CLIMB; i++) {
       const parent = node.parentElement;
       if (!parent || parent === document.body || parent === document.documentElement) break;
-      if ((parent.textContent || "").length > MAX_CARD_TEXT) break;
+      if (textLength(parent) > MAX_CARD_TEXT) break;
+      // A parent with several headlines is a list of items, not a single card
+      if (parent.querySelectorAll(HEADING_SELECTOR).length > 1) break;
       node = parent;
       if (node.matches(MEDIA_SELECTOR) || node.querySelector(MEDIA_SELECTOR)) return node;
     }
@@ -153,15 +185,42 @@
   const queue = new Set();
   let scheduled = false;
 
+  // True if an element's text or attributes still contain a blocked term
+  function stillMatches(el) {
+    if (matches(el.textContent)) return true;
+    const attrs = el.querySelectorAll("img, a, [title], [aria-label]");
+    for (const a of [el, ...attrs]) {
+      if (
+        matches(a.getAttribute("alt")) || matches(a.getAttribute("title")) ||
+        matches(a.getAttribute("aria-label")) || matches(safeDecode(a.getAttribute("href"))) ||
+        (a.tagName === "IMG" && matches(safeDecode(a.getAttribute("src"))))
+      ) return true;
+    }
+    return false;
+  }
+
+  function unhide(el) {
+    const original = el.getAttribute(MARK);
+    el.style.removeProperty("display");
+    if (original) el.style.setProperty("display", original);
+    el.removeAttribute(MARK);
+  }
+
   function flush() {
     scheduled = false;
     for (const el of queue) {
-      if (el.isConnected) scan(el);
+      if (!el.isConnected) continue;
+      // Some sites (e.g. YouTube) reuse a card for a different video: unhide it if it no longer matches
+      const hiddenCard = el.closest(`[${MARK}]`);
+      if (hiddenCard && !stillMatches(hiddenCard)) unhide(hiddenCard);
+      scan(el);
     }
     queue.clear();
+    scheduleReport();
   }
 
-  function enqueue(el) {
+  function enqueue(node) {
+    const el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     if (el && el.nodeType === Node.ELEMENT_NODE) queue.add(el);
     if (!scheduled) {
       scheduled = true;
@@ -173,8 +232,11 @@
     for (const m of mutations) {
       if (m.type === "childList") {
         m.addedNodes.forEach(enqueue);
+        if (m.removedNodes.length) enqueue(m.target);
       } else if (m.type === "characterData" && m.target.parentElement) {
         enqueue(m.target.parentElement);
+      } else if (m.type === "attributes") {
+        enqueue(m.target);
       }
     }
   });
@@ -206,7 +268,10 @@
     if (enabled || !document.body) return;
     enabled = true;
     scan(document.body);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, {
+      childList: true, subtree: true, characterData: true,
+      attributes: true, attributeFilter: ["title", "aria-label", "alt", "href", "src"],
+    });
     scheduleReport();
   }
 
@@ -215,12 +280,7 @@
     enabled = false;
     observer.disconnect();
     queue.clear();
-    document.querySelectorAll(`[${MARK}]`).forEach((el) => {
-      const original = el.getAttribute(MARK);
-      el.style.removeProperty("display");
-      if (original) el.style.setProperty("display", original);
-      el.removeAttribute(MARK);
-    });
+    document.querySelectorAll(`[${MARK}]`).forEach(unhide);
     newlyBlocked = 0;
     scheduleReport();
   }

@@ -292,8 +292,16 @@
   const DEFAULTS = { enabled: true, allowedSites: [], customTerms: [] };
 
   // Re-read settings and re-apply from scratch (handles removed filters too)
+  // Never run on this extension's own pages (repo, store listing), or they would be emptied
+  const SELF_PAGE = /gta6spoilerblocker|spoiler[\s_-]?blocker/i;
+  const isOwnPage = () => SELF_PAGE.test(location.href) || SELF_PAGE.test(document.title);
+
   function applySettings() {
     chrome.storage.local.get(DEFAULTS, (data) => {
+      if (isOwnPage()) {
+        disable();
+        return;
+      }
       buildPattern(data.customTerms);
       disable();
       if (data.enabled && !isAllowedSite(data.allowedSites)) enable();

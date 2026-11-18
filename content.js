@@ -54,7 +54,19 @@
     "(?<!\\p{L})long-?awaited\\s+(?:game|oyun)",
   ];
 
-  const PATTERN = new RegExp(TERMS.join("|"), "iu");
+  const BUILTIN = TERMS.join("|");
+  let PATTERN = new RegExp(BUILTIN, "iu");
+
+  const escapeRegExp = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Add the user's own filter words to the built-in list
+  function buildPattern(customTerms) {
+    const extra = (customTerms || [])
+      .map((t) => String(t).trim())
+      .filter(Boolean)
+      .map((t) => "(?<!\\p{L})" + escapeRegExp(t).replace(/\s+/g, "\\s*"));
+    PATTERN = new RegExp([BUILTIN, ...extra].join("|"), "iu");
+  }
   const MARK = "data-spoiler-blocked";
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "CODE"]);
   // Containers that usually hold one whole item (news card, post, list entry)
@@ -65,6 +77,7 @@
   const MAX_CARD_TEXT = 500;
 
   const matches = (s) => typeof s === "string" && s.length > 0 && PATTERN.test(s);
+  const HOST = location.hostname.replace(/^www\./, "");
 
   function safeDecode(s) {
     if (!s) return s;
@@ -96,6 +109,12 @@
     // Remember the original inline display value so it can be restored
     target.setAttribute(MARK, target.style.getPropertyValue("display") || "");
     target.style.setProperty("display", "none", "important");
+    // Count each item only once, even if settings change and it is hidden again
+    if (!everBlocked.has(target)) {
+      everBlocked.add(target);
+      newlyBlocked++;
+    }
+    scheduleReport();
   }
 
   function checkAttributes(el) {
@@ -161,12 +180,34 @@
   });
 
   let enabled = false;
+  let newlyBlocked = 0;
+  const everBlocked = new WeakSet();
+  let reportTimer = null;
+
+  const blockedCount = () => document.querySelectorAll(`[${MARK}]`).length;
+
+  // Tell the background worker how many items are hidden (for the badge and total)
+  function report() {
+    reportTimer = null;
+    const added = newlyBlocked;
+    newlyBlocked = 0;
+    try {
+      chrome.runtime.sendMessage({ type: "count", count: blockedCount(), added, active: enabled });
+    } catch (e) {
+      // Extension was reloaded; this page's script is orphaned
+    }
+  }
+
+  function scheduleReport() {
+    if (!reportTimer) reportTimer = setTimeout(report, 300);
+  }
 
   function enable() {
     if (enabled || !document.body) return;
     enabled = true;
     scan(document.body);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    scheduleReport();
   }
 
   function disable() {
@@ -180,24 +221,40 @@
       if (original) el.style.setProperty("display", original);
       el.removeAttribute(MARK);
     });
+    newlyBlocked = 0;
+    scheduleReport();
   }
 
-  function apply(isOn) {
-    if (isOn) enable();
-    else disable();
+  function isAllowedSite(allowedSites) {
+    return (allowedSites || []).some((site) => HOST === site || HOST.endsWith("." + site));
   }
 
-  function start() {
-    chrome.storage.local.get({ enabled: true }, (data) => apply(data.enabled));
+  const DEFAULTS = { enabled: true, allowedSites: [], customTerms: [] };
+
+  // Re-read settings and re-apply from scratch (handles removed filters too)
+  function applySettings() {
+    chrome.storage.local.get(DEFAULTS, (data) => {
+      buildPattern(data.customTerms);
+      disable();
+      if (data.enabled && !isAllowedSite(data.allowedSites)) enable();
+    });
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.enabled) apply(changes.enabled.newValue);
+    if (area !== "local") return;
+    if (changes.enabled || changes.allowedSites || changes.customTerms) applySettings();
+  });
+
+  // The popup asks this page for its status
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === "getStatus") {
+      sendResponse({ host: HOST, count: blockedCount(), active: enabled });
+    }
   });
 
   if (document.body) {
-    start();
+    applySettings();
   } else {
-    document.addEventListener("DOMContentLoaded", start, { once: true });
+    document.addEventListener("DOMContentLoaded", applySettings, { once: true });
   }
 })();

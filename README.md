@@ -14,7 +14,12 @@ A Manifest V3 extension for Microsoft Edge and Google Chrome. It hides GTA-relat
 
 ## Usage
 
-Click the extension icon in the toolbar to turn blocking on or off. An "OFF" badge is shown on the icon while blocking is off.
+Click the extension icon in the toolbar to open the settings:
+
+- **On/off switch** - turn blocking on or off everywhere ("OFF" badge while off).
+- **Counters** - items hidden on the current page and in total. The icon badge also shows the page count.
+- **Allow on this site** - stop blocking on the current site; manage the list under "Allowed sites".
+- **My filters** - add your own words or phrases to block, remove them with the x button.
 
 ## Filters
 

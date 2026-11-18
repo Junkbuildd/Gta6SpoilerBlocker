@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GTA 6 Spoiler Blocker",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Hides GTA-related headlines, news cards and their images on web pages to avoid GTA 6 spoilers.",
   "content_scripts": [
     {
@@ -18,5 +18,20 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "GTA 6 Spoiler Blocker",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }

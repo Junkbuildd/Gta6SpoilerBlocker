@@ -93,8 +93,9 @@
     const target = findContainer(el);
     if (target === document.body || target === document.documentElement) return;
     if (target.hasAttribute(MARK)) return;
+    // Remember the original inline display value so it can be restored
+    target.setAttribute(MARK, target.style.getPropertyValue("display") || "");
     target.style.setProperty("display", "none", "important");
-    target.setAttribute(MARK, "1");
   }
 
   function checkAttributes(el) {
@@ -159,10 +160,40 @@
     }
   });
 
-  function start() {
+  let enabled = false;
+
+  function enable() {
+    if (enabled || !document.body) return;
+    enabled = true;
     scan(document.body);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
+
+  function disable() {
+    if (!enabled) return;
+    enabled = false;
+    observer.disconnect();
+    queue.clear();
+    document.querySelectorAll(`[${MARK}]`).forEach((el) => {
+      const original = el.getAttribute(MARK);
+      el.style.removeProperty("display");
+      if (original) el.style.setProperty("display", original);
+      el.removeAttribute(MARK);
+    });
+  }
+
+  function apply(isOn) {
+    if (isOn) enable();
+    else disable();
+  }
+
+  function start() {
+    chrome.storage.local.get({ enabled: true }, (data) => apply(data.enabled));
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.enabled) apply(changes.enabled.newValue);
+  });
 
   if (document.body) {
     start();

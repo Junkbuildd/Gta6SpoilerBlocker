@@ -12,6 +12,10 @@ A Manifest V3 extension for Microsoft Edge and Google Chrome. It hides GTA-relat
 2. Open `edge://extensions` (or `chrome://extensions`) and turn on Developer mode.
 3. Click "Load unpacked" and select the extracted folder.
 
+## Usage
+
+Click the extension icon in the toolbar to turn blocking on or off. An "OFF" badge is shown on the icon while blocking is off.
+
 ## Filters
 
 The blocked words and phrases are in the `TERMS` list at the top of `content.js`.

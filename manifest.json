@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "GTA Spoiler Filtresi",
+  "version": "0.2.0",
+  "description": "GTA, Rockstar ve GTA 6 ile ilgili içerikleri sayfalarda gizler (spoiler'a karşı).",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

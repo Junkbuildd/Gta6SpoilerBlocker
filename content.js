@@ -206,6 +206,35 @@
     el.removeAttribute(MARK);
   }
 
+  // Rows/shelves that become empty once all their items are hidden (e.g. YouTube "Shorts" rows)
+  const SHELF_SELECTOR = [
+    "ytd-reel-shelf-renderer", "ytd-shelf-renderer", "ytd-rich-shelf-renderer",
+    "ytd-rich-section-renderer", "ytd-horizontal-card-list-renderer", "grid-shelf-view-model",
+    "ytd-vertical-list-renderer", "yt-horizontal-list-renderer",
+  ].join(", ");
+  const SHELF_MARK = "data-spoiler-shelf";
+
+  function tidyShelves() {
+    document.querySelectorAll(SHELF_SELECTOR).forEach((shelf) => {
+      const items = shelf.querySelectorAll(CARD_SELECTOR);
+      if (!items.length) return;
+      const allHidden = [...items].every((it) => it.closest(`[${MARK}]`));
+      if (allHidden && !shelf.hasAttribute(SHELF_MARK)) {
+        shelf.setAttribute(SHELF_MARK, shelf.style.getPropertyValue("display") || "");
+        shelf.style.setProperty("display", "none", "important");
+      } else if (!allHidden && shelf.hasAttribute(SHELF_MARK)) {
+        unhideShelf(shelf);
+      }
+    });
+  }
+
+  function unhideShelf(shelf) {
+    const original = shelf.getAttribute(SHELF_MARK);
+    shelf.style.removeProperty("display");
+    if (original) shelf.style.setProperty("display", original);
+    shelf.removeAttribute(SHELF_MARK);
+  }
+
   function flush() {
     scheduled = false;
     for (const el of queue) {
@@ -216,6 +245,7 @@
       scan(el);
     }
     queue.clear();
+    tidyShelves();
     scheduleReport();
   }
 
@@ -268,6 +298,7 @@
     if (enabled || !document.body) return;
     enabled = true;
     scan(document.body);
+    tidyShelves();
     observer.observe(document.body, {
       childList: true, subtree: true, characterData: true,
       attributes: true, attributeFilter: ["title", "aria-label", "alt", "href", "src"],
@@ -281,6 +312,7 @@
     observer.disconnect();
     queue.clear();
     document.querySelectorAll(`[${MARK}]`).forEach(unhide);
+    document.querySelectorAll(`[${SHELF_MARK}]`).forEach(unhideShelf);
     newlyBlocked = 0;
     scheduleReport();
   }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GTA 6 Spoiler Blocker",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Hides GTA-related headlines, news cards and their images on web pages to avoid GTA 6 spoilers.",
   "content_scripts": [
     {

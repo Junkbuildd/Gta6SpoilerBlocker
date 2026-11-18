@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GTA Spoiler Filtresi",
-  "version": "0.3.0",
-  "description": "GTA, Rockstar ve GTA 6 ile ilgili içerikleri sayfalarda gizler (spoiler'a karşı).",
+  "name": "GTA 6 Spoiler Blocker",
+  "version": "0.4.0",
+  "description": "Hides GTA-related headlines, news cards and their images on web pages to avoid GTA 6 spoilers.",
   "content_scripts": [
     {
       "matches": [

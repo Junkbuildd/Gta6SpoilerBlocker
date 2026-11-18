@@ -1,10 +1,13 @@
-# GTA Spoiler Filtresi
+# GTA 6 Spoiler Blocker
 
-Edge/Chrome uzantısı (Manifest V3). GTA, Rockstar ve GTA 6 ile ilgili metinleri, bağlantıları ve resim dosya adlarını sayfalarda gizler.
+A Manifest V3 extension for Microsoft Edge and Google Chrome. It hides GTA-related headlines, news cards, links and their thumbnail images on any web page, so you can avoid GTA 6 spoilers.
 
-## Kurulum
-1. Bu klasörü indir.
-2. edge://extensions (veya chrome://extensions) sayfasını aç, Geliştirici modunu aç.
-3. Paketlenmemiş öğe yükle'de bu klasörü seç.
+## Install
 
-Filtre kelimeleri content.js içindeki TERMS listesinde.
+1. Download this repository (Code > Download ZIP) and extract it.
+2. Open `edge://extensions` (or `chrome://extensions`) and turn on Developer mode.
+3. Click "Load unpacked" and select the extracted folder.
+
+## Filters
+
+The blocked words and phrases are in the `TERMS` list at the top of `content.js`.
